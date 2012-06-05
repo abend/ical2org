@@ -1,9 +1,10 @@
 ;;; ics2org.el -- convert icalendar to org
 
 ;; Copyright (C) 2010, 2011 Michael Markert
+;; Copyright (C) 2012 Sasha Kovar
 ;; Author: Michael Markert <markert.michael@googlemail.com>
 ;; Created: 2010/12/29
-;; Version: 0.3.1
+;; Version: 0.3.2
 ;; Keywords: org, calendar
 
 ;; This file is NOT part of Emacs.
@@ -37,7 +38,7 @@
 (eval-when-compile
   (require 'cl))
 
-(defconst ical2org/version "0.3.1")
+(defconst ical2org/version "0.3.2")
 
 (defgroup ical2org nil
   "Convert iCalendar files to orgmode files."
@@ -65,6 +66,35 @@ struct (capitalized)."
   "Function used for completing read.
 Has to be compatible to `completing-read'."
   :type '(function))
+
+(defun ical2org/convert-url (url outfile &optional preamble nosave)
+  "Convert ical events from url `URL' to `OUTFILE' and save when `NOSAVE' is non-nil."
+  (interactive "MURL: \nFSave as: \nP")
+  (let ((buf (url-retrieve-synchronously url))
+        (dbuf (get-buffer-create " *ical2org-tmp*"))
+        pos)
+    (unwind-protect
+         (when (setq pos (url-http-symbol-value-in-buffer
+                          'url-http-end-of-headers buf))
+           (with-current-buffer dbuf
+             (erase-buffer)
+             (decode-coding-string
+              (with-current-buffer buf
+                (buffer-substring (1+ pos) (point-max)))
+              'utf-8 nil dbuf)))
+      (kill-buffer buf)
+      (let ((events (ical2org/import-buffer dbuf)))
+        (save-current-buffer
+          (find-file outfile)
+          (erase-buffer)
+          (when preamble
+            (insert preamble)
+            (newline 2))
+          (dolist (e events)
+            (insert (ical2org/format e))
+            (newline))
+          (unless nosave
+            (save-buffer)))))))
 
 (defun ical2org/convert-file (fname outfile &optional nosave)
   "Convert ical events from file `FNAME' to `OUTFILE' and save when `NOSAVE' is non-nil."
