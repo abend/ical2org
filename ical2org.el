@@ -4,7 +4,7 @@
 ;; Copyright (C) 2012 Sasha Kovar
 ;; Author: Michael Markert <markert.michael@googlemail.com>
 ;; Created: 2010/12/29
-;; Version: 0.3.2
+;; Version: 0.3.3
 ;; Keywords: org, calendar
 
 ;; This file is NOT part of Emacs.
@@ -38,7 +38,7 @@
 (eval-when-compile
   (require 'cl))
 
-(defconst ical2org/version "0.3.2")
+(defconst ical2org/version "0.3.3")
 
 (defgroup ical2org nil
   "Convert iCalendar files to orgmode files."
@@ -173,22 +173,31 @@ Saves when `NOSAVE' is non-nil."
           (icalendar--convert-recurring-to-diary event start-decoded
                                                  start-time end-time)))
 
+(defun ical2org/all-day-p (start end)
+  "See if the time span is exactly one day long from midnight to midnight."
+  (let ((start-time (nth 2 start))
+        (end-time (nth 2 end))
+        (start (car start))
+        (end (car end)))
+    (and end end-time
+         (= start-time 0) (= end-time 0))))
+
 (defun ical2org/org-timestamp (start end)
   "Format `START' and `END' as `org-time-stamp'."
   (let ((start-time (nth 2 start))
         (end-time (nth 2 end))
         (start (car start))
         (end (car end)))
-    (if end
+    (if (not (ical2org/all-day-p start end))
         (format "%s--%s" (ical2org/org-time-fmt start start-time)
                 (ical2org/org-time-fmt end end-time))
-      (if start
-          (ical2org/org-time-fmt start start-time)))))
+        (if start
+            (ical2org/org-time-fmt start start-time)))))
 
 (defun ical2org/org-time-fmt (time &optional with-hm)
   "Format `TIME' as `org-time-stamp', if `WITH-HM' is non-nil included hh:mm.
 `TIME' is an decoded time as returned from `decode-time'."
-  (let ((fmt (if with-hm
+  (let ((fmt (if (and with-hm (not (string= with-hm "00:00")))
                  (cdr org-time-stamp-formats)
                (car org-time-stamp-formats)))
         (encoded-time (apply 'encode-time time)))
